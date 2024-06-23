@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 #[derive(Debug, Parser)]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands
+    pub command: Commands,
 }
 
 #[derive(Debug, Subcommand)]
@@ -40,7 +40,7 @@ pub enum Commands {
             help ="will re-create the session if it already exists",
             default_value = None,
         )]
-        force: Option<bool>
+        force: Option<bool>,
     },
     // Lists all available profiles
     #[command(about = "list groups & profiles")]

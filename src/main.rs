@@ -1,11 +1,11 @@
 mod cli;
+use anyhow::{Context, Result};
 use clap::Parser;
 use cli::Cli;
 use core::panic;
 use serde::{Deserialize, Serialize};
 use std::process::exit;
 use toml::from_str;
-use anyhow::{Result, Context};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TmuxPane {
@@ -34,24 +34,27 @@ struct Config {
 }
 
 fn get_current_sessions() -> Vec<String> {
-    let result: String = match std::process::Command::new( "sh").arg("-c")
-    .arg("tmux list-sessions -F \"#{session_name}\"").output() {
-        Ok(output) => {
-            String::from_utf8(output.stdout).unwrap_or("".to_owned())
-        },
+    let result: String = match std::process::Command::new("sh")
+        .arg("-c")
+        .arg("tmux list-sessions -F \"#{session_name}\"")
+        .output()
+    {
+        Ok(output) => String::from_utf8(output.stdout).unwrap_or("".to_owned()),
         Err(_e) => {
             return vec![];
-        },
+        }
     };
 
-    let sessions: Vec<String> = result.split("\n")
+    let sessions: Vec<String> = result
+        .split("\n")
         .filter(|s| !s.is_empty())
-        .map(|s| s.trim().to_owned()).collect();
+        .map(|s| s.trim().to_owned())
+        .collect();
 
     sessions
 }
 
-fn kill_session(name: &str) -> Result<()>{
+fn kill_session(name: &str) -> Result<()> {
     std::process::Command::new("sh")
         .arg("-c")
         .arg(format!("tmux kill-session -t {}", name))
@@ -60,14 +63,21 @@ fn kill_session(name: &str) -> Result<()>{
     Ok(())
 }
 
+fn get_command_string(name: &str, command: &str) -> String {
+    return format!(" send-keys -t {} \" {}\" C-m \\;", name, command);
+}
+
 fn create(session: &TmuxSession, force: bool) -> Result<()> {
     let current_sessions = get_current_sessions();
     match (current_sessions.contains(&session.name), force) {
         (true, true) => kill_session(&session.name)?,
         (true, false) => {
-            eprintln!("ERROR: session {} already exists, use --force to recreate", &session.name);
+            eprintln!(
+                "ERROR: session {} already exists, use --force to recreate",
+                &session.name
+            );
             exit(1);
-        },
+        }
         _ => (),
     }
 
@@ -84,10 +94,7 @@ fn create(session: &TmuxSession, force: bool) -> Result<()> {
     ));
 
     if let Some(command_) = &initial_window.panes[0].command {
-        command.push_str(&format!(
-            " send-keys -t {} \" {}\" C-m \\;",
-            &initial_window.name, &command_
-        ))
+        command.push_str(&get_command_string(&initial_window.name, &command_))
     }
 
     for window in &session.windows[1..] {
@@ -96,25 +103,16 @@ fn create(session: &TmuxSession, force: bool) -> Result<()> {
             &window.name, &window.panes[0].location
         ));
         if let Some(command_) = &window.panes[0].command {
-            command.push_str(&format!(
-                " send-keys -t {} \" {}\" C-m \\;",
-                &window.name, &command_
-            ))
+            command.push_str(&get_command_string(&window.name, &command_))
         }
         dbg!(&window);
         for pane in &window.panes[1..] {
-            command.push_str(&format!(" split-window -c {} \\;", &pane.location));
-            dbg!(&pane);
+            command.push_str(&format!(" split-window -h -c {} \\;", &pane.location));
             if let Some(command_) = &pane.command {
-                command.push_str(&format!(
-                    " send-keys -t {} \" {}\" C-m \\;",
-                    &window.name, &command_
-                ))
+                command.push_str(&get_command_string(&window.name, &command_))
             }
         }
     }
-
-    dbg!(&command);
 
     std::process::Command::new("sh")
         .arg("-c")
@@ -124,7 +122,7 @@ fn create(session: &TmuxSession, force: bool) -> Result<()> {
     Ok(())
 }
 
-fn launch (config: &Config, name: String,  force: bool) -> Result<()> {
+fn launch(config: &Config, name: String, force: bool) -> Result<()> {
     let session: &TmuxSession = match config.sessions.iter().find(|s| s.name == name) {
         Some(s) => s,
         None => {
@@ -138,8 +136,9 @@ fn launch (config: &Config, name: String,  force: bool) -> Result<()> {
     Ok(())
 }
 
-fn launch_group(config: &Config, name: String, force: bool) -> Result<()>{
-    let sessions: Vec<&TmuxSession> = config.sessions
+fn launch_group(config: &Config, name: String, force: bool) -> Result<()> {
+    let sessions: Vec<&TmuxSession> = config
+        .sessions
         .iter()
         .filter(|s| {
             if let Some(group) = &s.group {
@@ -193,8 +192,7 @@ fn main() {
         }
     };
 
-
-    if let Err(err) = match matches.command { 
+    if let Err(err) = match matches.command {
         cli::Commands::Launch { name, force } => launch(&config, name, force.unwrap_or(false)),
         cli::Commands::Group { name, force } => launch_group(&config, name, force.unwrap_or(false)),
         cli::Commands::List => list(&config),
