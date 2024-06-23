@@ -1,13 +1,13 @@
 # tmux-profiles
 
 ### Usage
-Launch a single profile: `tmux-profiles launch <profile_name>`
-Launch a group of profiles: `tmux-profiles group <group_name>`
-List all available profiles `tmux-profiles list`
+Launch a single profile: `tmux-profiles launch <profile_name>`  
+Launch a group of profiles: `tmux-profiles group <group_name>`  
+List all available profiles `tmux-profiles list`  
 
-config lives in `~/tmux-profiles.toml`
+config lives in `~/tmux-profiles.toml`  
 
-### Config example
+### Config example  
 ```toml
 [[session]]
 name = "test"
